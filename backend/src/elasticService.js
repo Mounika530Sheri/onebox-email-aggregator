@@ -26,19 +26,25 @@ async function createIndex() {
       console.log(`Index "${INDEX_NAME}" already exists`);
     }
   } catch (error) {
-    console.error('Error creating index:', error.message);
+    console.error('Error creating index:', error); // full error object
   }
 }
 
 async function indexEmail(email) {
+  if (!email.subject || !email.from || !email.body) {
+    console.warn('Skipping invalid email:', email);
+    return;
+  }
+
   try {
     await client.index({
       index: INDEX_NAME,
+      id: email.id, // use unique ID
       body: email
     });
-    console.log(`Email indexed: ${email.subject}`);
+    console.log(`Indexed email: ${email.subject}`);
   } catch (error) {
-    console.error(' Failed to index email:', error.message);
+    console.error('Failed to index email:', error, 'Email:', email);
   }
 }
 
