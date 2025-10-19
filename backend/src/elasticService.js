@@ -1,12 +1,19 @@
 const { Client } = require('@elastic/elasticsearch');
 
-const client = new Client({ node: process.env.ELASTIC_URL || 'http://localhost:9200' });
+const client = new Client({
+  node: process.env.ELASTIC_URL,
+  auth: {
+    apiKey: process.env.ELASTIC_API_KEY // ✅ required for Elastic Cloud
+  }
+});
+
 const INDEX_NAME = 'emails';
 
 async function createIndex() {
   try {
     const exists = await client.indices.exists({ index: INDEX_NAME });
-    if (!exists.body) {
+
+    if (!exists) { // ✅ updated from deprecated exists.body
       await client.indices.create({
         index: INDEX_NAME,
         body: {
@@ -21,30 +28,30 @@ async function createIndex() {
           }
         }
       });
-      console.log(`Index "${INDEX_NAME}" created`);
+      console.log(`✅ Index "${INDEX_NAME}" created`);
     } else {
-      console.log(`Index "${INDEX_NAME}" already exists`);
+      console.log(`ℹ️ Index "${INDEX_NAME}" already exists`);
     }
   } catch (error) {
-    console.error('Error creating index:', error); // full error object
+    console.error('❌ Error creating index:', error.meta?.body?.error || error);
   }
 }
 
 async function indexEmail(email) {
   if (!email.subject || !email.from || !email.body) {
-    console.warn('Skipping invalid email:', email);
+    console.warn('⚠️ Skipping invalid email:', email);
     return;
   }
 
   try {
     await client.index({
       index: INDEX_NAME,
-      id: email.id, // use unique ID
+      id: email.id,
       body: email
     });
-    console.log(`Indexed email: ${email.subject}`);
+    console.log(`✅ Indexed email: ${email.subject}`);
   } catch (error) {
-    console.error('Failed to index email:', error, 'Email:', email);
+    console.error('❌ Failed to index email:', error.meta?.body?.error || error);
   }
 }
 
