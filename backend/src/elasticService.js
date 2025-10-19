@@ -5,6 +5,7 @@ const client = new Client({
   auth: {
     apiKey: process.env.ELASTIC_API_KEY // ✅ required for Elastic Cloud
   }
+  sniffOnStart: false,
 });
 
 const INDEX_NAME = 'emails';
