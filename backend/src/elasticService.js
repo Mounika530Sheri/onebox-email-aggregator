@@ -5,7 +5,9 @@ const client = new Client({
   auth: {
     apiKey: process.env.ELASTIC_API_KEY
   },
-  
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 const INDEX_NAME = 'emails';
@@ -13,7 +15,6 @@ const INDEX_NAME = 'emails';
 async function createIndex() {
   try {
     const exists = await client.indices.exists({ index: INDEX_NAME });
-
     if (!exists) {
       await client.indices.create({
         index: INDEX_NAME,
@@ -34,20 +35,26 @@ async function createIndex() {
       console.log(`ℹ️ Index "${INDEX_NAME}" already exists`);
     }
   } catch (error) {
-    console.error('❌ Error creating index:', error);
+    console.error('❌ Error creating index:', error.meta?.body || error);
   }
 }
 
 async function indexEmail(email) {
+  if (!email.subject || !email.from || !email.body) {
+    console.warn('⚠️ Skipping invalid email:', email);
+    return;
+  }
+
   try {
     await client.index({
       index: INDEX_NAME,
-      document: email,
+      id: email.id,
+      body: email
     });
-    console.log(`✅ Indexed email: ${email.subject}`);
+    console.log(`📩 Indexed email: ${email.subject}`);
   } catch (error) {
-    console.error('❌ Error indexing email:', error);
+    console.error('❌ Failed to index email:', error.meta?.body || error);
   }
 }
 
-module.exports = { client, createIndex, indexEmail };
+module.exports = { createIndex, indexEmail, client };
