@@ -1,10 +1,8 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const { createIndex, client } = require('./elasticService');
 const { startAllImap } = require('./imapService');
-const cors = require('cors');
-
-
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -12,12 +10,12 @@ const PORT = process.env.PORT || 4000;
 app.use(express.json());
 app.use(cors());
 
-
+// Root route
 app.get('/', (req, res) => {
-  res.send(' OneBox Backend Running');
+  res.send('OneBox Backend Running');
 });
 
-
+// Search emails
 app.get('/api/emails/search', async (req, res) => {
   const { q } = req.query;
 
@@ -53,13 +51,18 @@ app.get('/api/emails/search', async (req, res) => {
   }
 });
 
-
+// Start server
 app.listen(PORT, async () => {
   console.log(`Backend listening on port ${PORT}`);
 
- 
-  await createIndex();
+  try {
+    // Create Elasticsearch index first
+    await createIndex();
+    console.log('Elasticsearch index ready');
 
-  
-  startAllImap();
+    // Then start all IMAP connections
+    startAllImap();
+  } catch (err) {
+    console.error('Initialization error:', err);
+  }
 });
