@@ -1,7 +1,8 @@
 const Imap = require('imap-simple');
 const { simpleParser } = require('mailparser');
 const PQueue = require('p-queue').default;
-const { indexEmail, client } = require('./elasticService');
+const { indexEmail, client } = require('./elasticService'); 
+
 
 const queue = new PQueue({ interval: 10000, intervalCap: 5 });
 
@@ -13,28 +14,8 @@ async function emailExists(uniqueId) {
     });
     return res.body === true;
   } catch (err) {
-    console.error('Error checking email existence:', err);
+    console.error(' Error checking email existence:', err.message);
     return false;
-  }
-}
-
-async function processMessage(msg) {
-  try {
-    const parsed = await simpleParser(msg.parts[0].body);
-    const uniqueId = parsed.messageId || `${parsed.from?.text}-${parsed.subject}-${parsed.date}`;
-
-    const exists = await emailExists(uniqueId);
-    if (!exists) {
-      await indexEmail({
-        id: uniqueId,
-        from: parsed.from?.text || 'Unknown',
-        subject: parsed.subject || 'No Subject',
-        body: parsed.text || '',
-        date: parsed.date || new Date()
-      });
-    }
-  } catch (err) {
-    console.error('Failed to parse/index email:', err);
   }
 }
 
@@ -55,25 +36,63 @@ async function startImapFor(account) {
     console.log(`IMAP connected: ${account.user}`);
 
     await connection.openBox('INBOX');
-    const fetchOptions = { bodies: [''], struct: true };
 
-    // Fetch last 50 messages once
-    const messages = await connection.search(['ALL'], fetchOptions);
+   
+    const fetchOptions = { bodies: [''], struct: true };
+    const searchCriteria = ['ALL'];
+    const messages = await connection.search(searchCriteria, fetchOptions);
     const recentMessages = messages.slice(-50);
 
     for (const msg of recentMessages) {
-      queue.add(() => processMessage(msg));
+      queue.add(async () => {
+        try {
+          const parsed = await simpleParser(msg.parts[0].body);
+          const uniqueId = parsed.messageId || `${parsed.from?.text}-${parsed.subject}-${parsed.date}`;
+
+          const exists = await emailExists(uniqueId);
+          if (!exists) {
+            await indexEmail({
+              id: uniqueId,
+              from: parsed.from?.text,
+              subject: parsed.subject,
+              body: parsed.text,
+              date: parsed.date
+            });
+          }
+        } catch (err) {
+          console.error(' Failed to parse or index email:', err.message);
+        }
+      });
     }
 
-    // Listen for new emails
+  
     connection.on('mail', async () => {
-      const newMessages = await connection.search(['UNSEEN'], fetchOptions);
-      for (const msg of newMessages) {
-        queue.add(() => processMessage(msg));
+      const messages = await connection.search(['UNSEEN'], fetchOptions);
+
+      for (const msg of messages) {
+        queue.add(async () => {
+          try {
+            const parsed = await simpleParser(msg.parts[0].body);
+            const uniqueId = parsed.messageId || `${parsed.from?.text}-${parsed.subject}-${parsed.date}`;
+
+            const exists = await emailExists(uniqueId);
+            if (!exists) {
+              await indexEmail({
+                id: uniqueId,
+                from: parsed.from?.text,
+                subject: parsed.subject,
+                body: parsed.text,
+                date: parsed.date
+              });
+            }
+          } catch (err) {
+            console.error(' Failed to parse or index new email:', err.message);
+          }
+        });
       }
     });
   } catch (err) {
-    console.error(`IMAP error for ${account.user}:`, err);
+    console.error(`IMAP error for ${account.user}:`, err.message);
   }
 }
 
