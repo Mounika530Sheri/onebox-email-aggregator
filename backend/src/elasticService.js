@@ -30,18 +30,18 @@ async function createIndex() {
           }
         }
       });
-      console.log(`✅ Index "${INDEX_NAME}" created`);
+      console.log(`Index "${INDEX_NAME}" created`);
     } else {
-      console.log(`ℹ️ Index "${INDEX_NAME}" already exists`);
+      console.log(`Index "${INDEX_NAME}" already exists`);
     }
   } catch (error) {
-    console.error('❌ Error creating index:', error.meta?.body || error);
+    console.error('Error creating index:', error.meta?.body || error);
   }
 }
 
 async function indexEmail(email) {
   if (!email.subject || !email.from || !email.body) {
-    console.warn('⚠️ Skipping invalid email:', email);
+    console.warn('Skipping invalid email:', email);
     return;
   }
 
@@ -51,9 +51,9 @@ async function indexEmail(email) {
       id: email.id,
       body: email
     });
-    console.log(`📩 Indexed email: ${email.subject}`);
+    console.log(`Indexed email: ${email.subject}`);
   } catch (error) {
-    console.error('❌ Failed to index email:', error.meta?.body || error);
+    console.error('Failed to index email:', error.meta?.body || error);
   }
 }
 
