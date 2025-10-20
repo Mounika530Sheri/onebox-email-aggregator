@@ -3,19 +3,25 @@ const express = require('express');
 const cors = require('cors');
 const { createIndex, client } = require('./elasticService');
 const { startAllImap } = require('./imapService');
+const OpenAI = require('openai');
+const { generateReply } = require("./aiService");
+
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 app.use(express.json());
 app.use(cors());
 
-// Root route
+// Health check route
 app.get('/', (req, res) => {
   res.send('OneBox Backend Running');
 });
 
-// Search emails
+// Elasticsearch search route
 app.get('/api/emails/search', async (req, res) => {
   const { q } = req.query;
 
@@ -51,18 +57,32 @@ app.get('/api/emails/search', async (req, res) => {
   }
 });
 
-// Start server
+// Suggest reply route
+app.post("/api/emails/suggest-reply", async (req, res) => {
+  try {
+    const { emailBody, context } = req.body;
+    if (!emailBody) return res.status(400).json({ error: "Email body is required" });
+
+    const suggestion = await generateReply(emailBody, context);
+    res.json({ suggestion });
+  } catch (err) {
+    console.error("Error generating reply:", err);
+
+    if (err.code === "insufficient_quota" || err.status === 429) {
+      return res.status(429).json({ error: "Quota exceeded. Please try again later." });
+    }
+
+    res.status(500).json({ error: "Failed to generate suggestion. Please try again." });
+  }
+});
+
+// Start backend
 app.listen(PORT, async () => {
   console.log(`Backend listening on port ${PORT}`);
 
-  try {
-    // Create Elasticsearch index first
-    await createIndex();
-    console.log('Elasticsearch index ready');
+  // Create Elasticsearch index if not exists
+  await createIndex();
 
-    // Then start all IMAP connections
-    startAllImap();
-  } catch (err) {
-    console.error('Initialization error:', err);
-  }
+  // Start fetching emails via IMAP
+  startAllImap();
 });
